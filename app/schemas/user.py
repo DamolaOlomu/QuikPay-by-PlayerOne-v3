@@ -39,6 +39,23 @@ class UserCreate(BaseModel):
         return v
 
 
+class AdminCreate(BaseModel):
+    """Schema for creating an admin user — restricted to existing admins."""
+    phone_number: str
+    fullname: str = Field(min_length=2, max_length=255)
+    email: EmailStr  # required for admins
+    password: str = Field(min_length=12, max_length=128)  # stronger minimum for admins
+    currency: str = Field(default="NGN", min_length=3, max_length=3)
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        cleaned = v.strip().replace(" ", "").replace("-", "")
+        if not PHONE_RE.match(cleaned):
+            raise ValueError("Invalid phone number format.")
+        return cleaned
+
+
 class UserUpdate(BaseModel):
     fullname: Optional[str] = Field(default=None, min_length=2, max_length=255)
     email: Optional[EmailStr] = None

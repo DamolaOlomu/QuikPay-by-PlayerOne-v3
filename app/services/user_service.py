@@ -25,8 +25,8 @@ from app.core.security import (
     generate_api_key,
 )
 from app.core.logging import get_logger
-from app.models.user import User, UserStatus
-from app.schemas.user import UserCreate, UserUpdate, LoginRequest
+from app.models.user import User, UserRole, UserStatus
+from app.schemas.user import AdminCreate, UserCreate, UserUpdate, LoginRequest
 
 log = get_logger(__name__)
 
@@ -71,6 +71,38 @@ class UserService:
 
         log.info("user.created", user_id=user.id, phone=user.phone_number)
         return user
+
+    async def create_admin(self, payload: AdminCreate, actor_id: str) -> User:
+        """Create an admin user. Only callable by an existing admin (enforced at endpoint level)."""
+        existing = await self._get_by_phone(payload.phone_number)
+        if existing:
+            raise DuplicateResourceError(
+                f"A user with phone number {payload.phone_number} already exists."
+            )
+
+        if payload.email:
+            result = await self.db.execute(
+                select(User).where(User.email == payload.email, User.is_deleted == False)
+            )
+            if result.scalar_one_or_none():
+                raise DuplicateResourceError(
+                    f"A user with email {payload.email} already exists."
+                )
+
+        admin = User(
+            phone_number=payload.phone_number,
+            fullname=payload.fullname,
+            email=payload.email,
+            hashed_password=hash_password(payload.password),
+            currency=payload.currency.upper(),
+            role=UserRole.ADMIN,
+            status=UserStatus.ACTIVE,  # admins are active immediately
+        )
+        self.db.add(admin)
+        await self.db.flush()
+
+        log.warning("admin.created", admin_id=admin.id, actor=actor_id)
+        return admin
 
     # ── Read ──────────────────────────────────────────────────────────────────
 

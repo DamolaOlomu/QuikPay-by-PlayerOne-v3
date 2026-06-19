@@ -13,7 +13,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.common import APIResponse
 from app.schemas.user import (
-    UserCreate, UserUpdate, UserResponse,
+    AdminCreate, UserCreate, UserUpdate, UserResponse,
     LoginRequest, TokenResponse, RefreshRequest, APIKeyResponse,
 )
 from app.services.user_service import UserService
@@ -115,6 +115,25 @@ async def rotate_api_key(
 
 
 # ── Admin ─────────────────────────────────────────────────────────────────────
+
+@router.post(
+    "/admin",
+    response_model=APIResponse[UserResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="[Admin] Create a new admin user",
+)
+async def create_admin(
+    payload: AdminCreate,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = UserService(db)
+    new_admin = await svc.create_admin(payload, actor_id=admin.id)
+    return APIResponse(
+        data=UserResponse.model_validate(new_admin),
+        message="Admin user created successfully.",
+    )
+
 
 @router.get(
     "/{user_id}",
