@@ -45,13 +45,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     configure_logging()
     log.info("app.starting", version=settings.APP_VERSION, env=settings.APP_ENV)
 
-    # Initialise DB tables (dev/test only — prod uses Alembic migrations)
-    if not settings.is_production:
-        from app.db.session import engine
-        from app.db.base import Base
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        log.info("db.tables_created")
 
     # Sentry (production error tracking)
     if settings.SENTRY_DSN and settings.is_production:
