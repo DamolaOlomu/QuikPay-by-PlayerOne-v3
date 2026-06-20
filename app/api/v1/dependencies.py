@@ -13,9 +13,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthenticationError, InvalidTokenError
-from app.core.security import decode_token, verify_password
+from app.core.security import decode_token
 from app.db.session import get_db
-from app.models.user import User, UserStatus
+from app.models.user import User, UserRole, UserStatus
 from app.schemas.common import PaginationParams
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -41,7 +41,7 @@ async def get_current_user(
         raise InvalidTokenError("Invalid or expired token.")
 
     result = await db.execute(
-        select(User).where(User.id == user_id, User.is_deleted == False)
+        select(User).where(User.id == user_id, User.is_deleted.is_(False))
     )
     user = result.scalar_one_or_none()
 
@@ -56,7 +56,6 @@ async def get_current_user(
 
 
 async def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
-    from app.models.user import UserRole
     if current_user.role != UserRole.ADMIN:
         raise AuthenticationError("Admin access required.")
     return current_user
