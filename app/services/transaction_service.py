@@ -108,7 +108,7 @@ class TransactionService:
 
     async def _get_user(self, user_id: str) -> User:
         result = await self.db.execute(
-            select(User).where(User.id == user_id, User.is_deleted == False)
+            select(User).where(User.id == user_id, User.is_deleted.is_(False))
         )
         user = result.scalar_one_or_none()
         if not user:
@@ -117,7 +117,7 @@ class TransactionService:
 
     async def _get_user_by_wallet_id(self, wallet_id: str) -> User:
         result = await self.db.execute(
-            select(User).where(User.wallet_id == wallet_id, User.is_deleted == False)
+            select(User).where(User.wallet_id == wallet_id, User.is_deleted.is_(False))
         )
         user = result.scalar_one_or_none()
         if not user:
