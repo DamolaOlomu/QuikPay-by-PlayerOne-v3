@@ -38,13 +38,13 @@ class UserService:
 
     async def _get_by_phone(self, phone: str) -> Optional[User]:
         result = await self.db.execute(
-            select(User).where(User.phone_number == phone, User.is_deleted == False)
+            select(User).where(User.phone_number == phone, User.is_deleted.is_(False))
         )
         return result.scalar_one_or_none()
 
     async def _get_by_id(self, user_id: str) -> Optional[User]:
         result = await self.db.execute(
-            select(User).where(User.id == user_id, User.is_deleted == False)
+            select(User).where(User.id == user_id, User.is_deleted.is_(False))
         )
         return result.scalar_one_or_none()
 
@@ -82,7 +82,7 @@ class UserService:
 
         if payload.email:
             result = await self.db.execute(
-                select(User).where(User.email == payload.email, User.is_deleted == False)
+                select(User).where(User.email == payload.email, User.is_deleted.is_(False))
             )
             if result.scalar_one_or_none():
                 raise DuplicateResourceError(

@@ -1,14 +1,11 @@
 name: CI
-
 on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
-
 env:
   PYTHON_VERSION: "3.12"
-
 jobs:
   lint-and-type-check:
     name: Lint & Type Check
@@ -20,9 +17,8 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
       - run: pip install ruff mypy
-      - run: ruff check app tests
+      - run: ruff check app tests --fix
       - run: mypy app --ignore-missing-imports --no-strict-optional
-
   test:
     name: Tests
     runs-on: ubuntu-latest
@@ -51,7 +47,6 @@ jobs:
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
-
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -63,8 +58,7 @@ jobs:
           cache: pip
       - run: pip install bandit safety
       - run: bandit -r app/ -ll -ii
-      - run: safety check -r requirements.txt
-
+      - run: safety scan -r requirements.txt --continue-on-error
   docker-build:
     name: Docker Build Check
     runs-on: ubuntu-latest

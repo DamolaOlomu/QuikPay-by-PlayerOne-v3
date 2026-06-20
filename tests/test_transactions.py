@@ -25,35 +25,34 @@ class TestCreateTransaction:
     async def test_create_deposit(self, client: AsyncClient, auth_headers: dict, registered_user: dict, db: AsyncSession):
         await _fund_user(db, registered_user["id"])
 
+        # Actual route: POST /api/v1/transactions/wallet/top-up/bank-transfer
         resp = await client.post(
-            "/api/v1/transactions",
+            "/api/v1/transactions/wallet/top-up/bank-transfer",
             headers=auth_headers,
             json={
                 "amount": "5000.00",
                 "currency": "NGN",
-                "transaction_type": "deposit",
-                "channel": "bank_app",
                 "description": "Test deposit",
             },
         )
         assert resp.status_code == 201
         data = resp.json()["data"]
-        assert data["status"] == "initiated"
-        assert data["transaction_type"] == "deposit"
-        assert float(data["amount"]) == 5000.0
-        assert data["fee"] is not None
-        assert data["reference"].startswith("P1P")
+        txn = data["transaction"]
+        assert txn["status"] == "initiated"
+        assert txn["transaction_type"] == "fund_wallet"
+        assert float(txn["amount"]) == 5000.0
+        assert txn["fee"] is not None
+        assert txn["reference"].startswith("P1P")
 
     async def test_create_insufficient_funds(self, client: AsyncClient, auth_headers: dict, registered_user: dict, db: AsyncSession):
-        # User has 0 balance
+        # User has 0 balance — send money should fail
         resp = await client.post(
-            "/api/v1/transactions",
+            "/api/v1/transactions/send/wallet",
             headers=auth_headers,
             json={
+                "recipient_wallet_id": "WLT-FAKE-001",
                 "amount": "999999.00",
                 "currency": "NGN",
-                "transaction_type": "send_money",
-                "channel": "api",
             },
         )
         assert resp.status_code == 422
@@ -67,18 +66,16 @@ class TestCreateTransaction:
         payload = {
             "amount": "1000.00",
             "currency": "NGN",
-            "transaction_type": "deposit",
-            "channel": "api",
         }
 
-        r1 = await client.post("/api/v1/transactions", headers=headers, json=payload)
-        r2 = await client.post("/api/v1/transactions", headers=headers, json=payload)
+        r1 = await client.post("/api/v1/transactions/wallet/top-up/bank-transfer", headers=headers, json=payload)
+        r2 = await client.post("/api/v1/transactions/wallet/top-up/bank-transfer", headers=headers, json=payload)
 
         assert r1.status_code == 201
         assert r2.status_code == 201
         # Same transaction returned both times
-        assert r1.json()["data"]["id"] == r2.json()["data"]["id"]
-        assert r1.json()["data"]["reference"] == r2.json()["data"]["reference"]
+        assert r1.json()["data"]["transaction"]["id"] == r2.json()["data"]["transaction"]["id"]
+        assert r1.json()["data"]["transaction"]["reference"] == r2.json()["data"]["transaction"]["reference"]
 
 
 class TestGetTransaction:
@@ -86,11 +83,11 @@ class TestGetTransaction:
     async def test_get_own_transaction(self, client: AsyncClient, auth_headers: dict, registered_user: dict, db: AsyncSession):
         await _fund_user(db, registered_user["id"])
         create_resp = await client.post(
-            "/api/v1/transactions",
+            "/api/v1/transactions/wallet/top-up/bank-transfer",
             headers=auth_headers,
-            json={"amount": "500.00", "currency": "NGN", "transaction_type": "deposit", "channel": "api"},
+            json={"amount": "500.00", "currency": "NGN"},
         )
-        txn_id = create_resp.json()["data"]["id"]
+        txn_id = create_resp.json()["data"]["transaction"]["id"]
 
         resp = await client.get(f"/api/v1/transactions/{txn_id}", headers=auth_headers)
         assert resp.status_code == 200
@@ -100,11 +97,11 @@ class TestGetTransaction:
     async def test_cannot_get_other_users_transaction(self, client: AsyncClient, auth_headers: dict, registered_user: dict, db: AsyncSession):
         await _fund_user(db, registered_user["id"])
         create_resp = await client.post(
-            "/api/v1/transactions",
+            "/api/v1/transactions/wallet/top-up/bank-transfer",
             headers=auth_headers,
-            json={"amount": "500.00", "currency": "NGN", "transaction_type": "deposit", "channel": "api"},
+            json={"amount": "500.00", "currency": "NGN"},
         )
-        txn_id = create_resp.json()["data"]["id"]
+        txn_id = create_resp.json()["data"]["transaction"]["id"]
 
         # Register a second user
         await client.post("/api/v1/users/register", json={
@@ -129,11 +126,11 @@ class TestStatusTransition:
     ):
         await _fund_user(db, registered_user["id"])
         create_resp = await client.post(
-            "/api/v1/transactions",
+            "/api/v1/transactions/wallet/top-up/bank-transfer",
             headers=auth_headers,
-            json={"amount": "1000.00", "currency": "NGN", "transaction_type": "deposit", "channel": "api"},
+            json={"amount": "1000.00", "currency": "NGN"},
         )
-        txn_id = create_resp.json()["data"]["id"]
+        txn_id = create_resp.json()["data"]["transaction"]["id"]
 
         resp = await client.patch(
             f"/api/v1/transactions/{txn_id}/status",
@@ -148,11 +145,11 @@ class TestStatusTransition:
     ):
         await _fund_user(db, registered_user["id"])
         create_resp = await client.post(
-            "/api/v1/transactions",
+            "/api/v1/transactions/wallet/top-up/bank-transfer",
             headers=auth_headers,
-            json={"amount": "1000.00", "currency": "NGN", "transaction_type": "deposit", "channel": "api"},
+            json={"amount": "1000.00", "currency": "NGN"},
         )
-        txn_id = create_resp.json()["data"]["id"]
+        txn_id = create_resp.json()["data"]["transaction"]["id"]
 
         # INITIATED → SUCCESS is not allowed (must go through PENDING → PROCESSING first)
         resp = await client.patch(
@@ -168,25 +165,44 @@ class TestStatusTransition:
     ):
         await _fund_user(db, registered_user["id"], amount=50_000)
 
-        create_resp = await client.post(
-            "/api/v1/transactions",
-            headers=auth_headers,
-            json={"amount": "1000.00", "currency": "NGN", "transaction_type": "send_money", "channel": "api"},
+        # Use send/wallet to test a debit lifecycle (send_money type)
+        # First register a recipient
+        await client.post("/api/v1/users/register", json={
+            "phone_number": "+2348011112222",
+            "fullname": "Recipient",
+            "password": "SecurePass123!",
+            "currency": "NGN",
+        })
+        recipient_resp = await client.post("/api/v1/users/login", json={
+            "phone_number": "+2348011112222",
+            "password": "SecurePass123!",
+        })
+        recipient_data = recipient_resp.json()["data"]
+
+        # Get recipient wallet_id
+        recipient_me = await client.get(
+            "/api/v1/transactions/wallet",
+            headers={"Authorization": f"Bearer {recipient_data['access_token']}"},
         )
-        txn_id = create_resp.json()["data"]["id"]
+        recipient_wallet_id = recipient_me.json()["data"]["wallet_id"]
 
-        for status in ["pending", "processing", "success"]:
-            r = await client.patch(
-                f"/api/v1/transactions/{txn_id}/status",
-                headers=auth_headers,
-                json={"status": status},
-            )
-            assert r.status_code == 200, f"Failed at {status}: {r.json()}"
+        create_resp = await client.post(
+            "/api/v1/transactions/send/wallet",
+            headers=auth_headers,
+            json={
+                "recipient_wallet_id": recipient_wallet_id,
+                "amount": "1000.00",
+                "currency": "NGN",
+            },
+        )
+        assert create_resp.status_code == 201
+        txn = create_resp.json()["data"]
+        # send/wallet settles immediately at "success"
+        assert txn["status"] == "success"
 
-        # Check balance was debited on success
+        # Check balance was debited
         balance_resp = await client.get("/api/v1/users/me/balance", headers=auth_headers)
         balance = balance_resp.json()["data"]["balance"]
-        # 50000 - 1000 (amount) - fee
         assert balance < 50_000
 
 
@@ -196,11 +212,12 @@ class TestListTransactions:
         await _fund_user(db, registered_user["id"])
         for i in range(3):
             await client.post(
-                "/api/v1/transactions",
+                "/api/v1/transactions/wallet/top-up/bank-transfer",
                 headers=auth_headers,
-                json={"amount": str(100 + i), "currency": "NGN", "transaction_type": "deposit", "channel": "api"},
+                json={"amount": str(100 + i), "currency": "NGN"},
             )
 
+        # Actual route: GET /api/v1/transactions
         resp = await client.get("/api/v1/transactions?per_page=2", headers=auth_headers)
         assert resp.status_code == 200
         body = resp.json()

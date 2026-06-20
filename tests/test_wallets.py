@@ -38,7 +38,8 @@ class TestWallets:
         assert len(registered_user["wallet_id"]) <= 32
 
     async def test_get_my_wallet(self, client: AsyncClient, auth_headers: dict, registered_user: dict):
-        resp = await client.get("/api/v1/wallets/me", headers=auth_headers)
+        # Actual route: GET /api/v1/transactions/wallet
+        resp = await client.get("/api/v1/transactions/wallet", headers=auth_headers)
 
         assert resp.status_code == 200
         data = resp.json()["data"]
@@ -49,23 +50,23 @@ class TestWallets:
     async def test_fund_wallet_initiates_explicit_transaction(
         self, client: AsyncClient, auth_headers: dict
     ):
+        # Actual route: POST /api/v1/transactions/wallet/top-up/bank-transfer
         resp = await client.post(
-            "/api/v1/wallets/fund",
+            "/api/v1/transactions/wallet/top-up/bank-transfer",
             headers={**auth_headers, "Idempotency-Key": "wallet-fund-001"},
             json={
                 "amount": "2500.00",
                 "currency": "NGN",
-                "source": "bank_transfer",
-                "external_reference": "BANK-REF-001",
             },
         )
 
         assert resp.status_code == 201
         data = resp.json()["data"]
-        assert data["transaction_type"] == "fund_wallet"
-        assert data["channel"] == "bank_transfer"
-        assert data["status"] == "initiated"
-        assert data["idempotency_key"] == "wallet-fund-001"
+        txn = data["transaction"]
+        assert txn["transaction_type"] == "fund_wallet"
+        assert txn["channel"] == "bank_transfer"
+        assert txn["status"] == "initiated"
+        assert txn["idempotency_key"] == "wallet-fund-001"
 
     async def test_send_money_to_wallet_settles_both_wallets(
         self,
@@ -78,8 +79,9 @@ class TestWallets:
         await _fund_user(db, registered_user["id"], amount=10_000.0)
         await _fund_user(db, recipient["id"], amount=500.0)
 
+        # Actual route: POST /api/v1/transactions/send/wallet
         resp = await client.post(
-            "/api/v1/wallets/send",
+            "/api/v1/transactions/send/wallet",
             headers={**auth_headers, "Idempotency-Key": "wallet-send-001"},
             json={
                 "recipient_wallet_id": recipient["wallet_id"],
@@ -97,14 +99,15 @@ class TestWallets:
         assert data["counterparty_id"] == recipient["wallet_id"]
         assert float(data["balance_after"]) == 8985.0
 
-        refreshed = await client.get("/api/v1/wallets/me", headers=auth_headers)
+        refreshed = await client.get("/api/v1/transactions/wallet", headers=auth_headers)
         assert float(refreshed.json()["data"]["balance"]) == 8985.0
 
     async def test_bank_transfer_requires_sufficient_wallet_balance(
         self, client: AsyncClient, auth_headers: dict
     ):
+        # Actual route: POST /api/v1/transactions/send/bank-transfer
         resp = await client.post(
-            "/api/v1/wallets/bank-transfers",
+            "/api/v1/transactions/send/bank-transfer",
             headers=auth_headers,
             json={
                 "amount": "50000.00",
@@ -119,8 +122,9 @@ class TestWallets:
         assert resp.json()["error_code"] == "insufficient_funds"
 
     async def test_generate_virtual_account(self, client: AsyncClient, auth_headers: dict, registered_user: dict):
+        # Actual route: POST /api/v1/transactions/send/virtual-account
         resp = await client.post(
-            "/api/v1/wallets/virtual-accounts",
+            "/api/v1/transactions/send/virtual-account",
             headers=auth_headers,
             json={"preferred_bank_code": "999001"},
         )
