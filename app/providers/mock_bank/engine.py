@@ -24,6 +24,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import DuplicateResourceError, ResourceNotFoundError
 from app.core.logging import get_logger
 from app.providers.mock_bank.models import (
+    MockCard,
+    MockCardStatus,
     MockEntryType,
     MockLedgerEntry,
     MockTransfer,
@@ -402,9 +404,7 @@ class MockBankEngine:
         customer_ref: str,
         card_type: Optional[str] = None,
         bank_name: Optional[str] = None,
-    ) -> "MockCard":
-        from app.providers.mock_bank.models import MockCard, MockCardStatus
-
+    ) -> MockCard:
         # Infer card type from first digit if not provided
         if not card_type:
             first = card_number.lstrip()[0]
@@ -440,9 +440,7 @@ class MockBankEngine:
         log.info("mock_bank.card.tokenised", token=token, customer_ref=customer_ref)
         return card
 
-    async def get_card(self, token: str) -> "MockCard":
-        from app.providers.mock_bank.models import MockCard
-        from sqlalchemy import select
+    async def get_card(self, token: str) -> MockCard:
         result = await self.db.execute(
             select(MockCard).where(MockCard.token == token)
         )
@@ -451,9 +449,7 @@ class MockBankEngine:
             raise ResourceNotFoundError(f"Card token {token!r} not found")
         return card
 
-    async def list_cards(self, customer_ref: str) -> list["MockCard"]:
-        from app.providers.mock_bank.models import MockCard
-        from sqlalchemy import select
+    async def list_cards(self, customer_ref: str) -> list[MockCard]:
         result = await self.db.execute(
             select(MockCard).where(MockCard.customer_ref == customer_ref)
         )
@@ -471,9 +467,6 @@ class MockBankEngine:
         Simulate a card charge. Uses the same trigger rules as transfers.
         Returns a Glyde-compatible charge response dict.
         """
-        from app.providers.mock_bank.models import MockCardStatus
-        from app.providers.mock_bank.triggers import outcome_for_transfer, SimulatedOutcome
-
         card = await self.get_card(token)
         if card.status != MockCardStatus.ACTIVE:
             raise ResourceNotFoundError(f"Card {token!r} is {card.status.value}")
