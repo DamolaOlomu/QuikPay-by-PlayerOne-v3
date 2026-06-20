@@ -45,14 +45,16 @@ class TestCreateTransaction:
         assert txn["reference"].startswith("P1P")
 
     async def test_create_insufficient_funds(self, client: AsyncClient, auth_headers: dict, registered_user: dict, db: AsyncSession):
-        # User has 0 balance — send money should fail
+        # User has 0 balance — bank transfer should fail with insufficient funds
         resp = await client.post(
-            "/api/v1/transactions/send/wallet",
+            "/api/v1/transactions/send/bank-transfer",
             headers=auth_headers,
             json={
-                "recipient_wallet_id": "WLT-FAKE-001",
                 "amount": "999999.00",
                 "currency": "NGN",
+                "bank_code": "044",
+                "account_number": "0123456789",
+                "account_name": "Jane Doe",
             },
         )
         assert resp.status_code == 422

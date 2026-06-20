@@ -30,6 +30,31 @@ class FakeGlydeClient:
             },
         }
 
+    async def collection_bank_transfer(self, **kwargs):
+        self.calls.append(("collection_bank_transfer", kwargs))
+        return {
+            "status": "success",
+            "data": {
+                "reference": "glyde_bank_transfer_ref",
+                "status": "pending",
+                "account_number": "0123456789",
+                "bank_name": "MockBank MFB",
+            },
+        }
+
+    async def create_virtual_account(self, payload: dict):
+        self.calls.append(("create_virtual_account", payload))
+        return {
+            "status": "success",
+            "data": {
+                "uid": "glyde_va_uid",
+                "account_number": "1234567890",
+                "account_name": "Test User",
+                "bank_name": "MockBank MFB",
+                "bank_code": "999",
+            },
+        }
+
     async def initiate_transfer(self, **kwargs):
         self.calls.append(("initiate_transfer", kwargs))
         return {
@@ -66,7 +91,7 @@ async def test_glyde_card_collection_is_attached_to_wallet_funding(
     svc.settings.GLYDE_ENABLED = True
     try:
         txn = await svc.fund_wallet(
-            WalletFundRequest(amount=Decimal("1500.00"), source="card"),
+            WalletFundRequest(amount=Decimal("1500.00"), method="card"),  # fixed: source → method
             registered_user["id"],
             idempotency_key="glyde-card-fund-001",
         )
