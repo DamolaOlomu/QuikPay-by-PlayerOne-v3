@@ -56,9 +56,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-      - run: pip install bandit safety
+      - run: pip install bandit pip-audit
       - run: bandit -r app/ -ll -ii
-      - run: safety scan -r requirements.txt --continue-on-error
+      - run: pip-audit -r requirements.txt --skip-editable || true
   docker-build:
     name: Docker Build Check
     runs-on: ubuntu-latest
