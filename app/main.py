@@ -168,7 +168,7 @@ def create_app() -> FastAPI:
         app.include_router(mock_bank_router, prefix=settings.API_V1_PREFIX)
 
     # ── Health / Readiness probes ─────────────────────────────────────────────
-    @app.get("/health", tags=["Observability"], include_in_schema=False)
+    @app.api_route("/health", methods=["GET", "HEAD"], tags=["Observability"], include_in_schema=False)
     async def health() -> dict:
         return {"status": "ok", "version": settings.APP_VERSION}
 
