@@ -12,8 +12,12 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-# Import the shared Base so autogenerate sees all models
+# Import the shared Base, then explicitly register every model on its
+# metadata so Alembic autogenerate can see them. base_models is only ever
+# imported here — never from app.db.base itself or app runtime code — to
+# avoid a circular import (see app/db/base_models.py docstring).
 from app.db.base import Base  # noqa: F401
+import app.db.base_models  # noqa: F401
 from app.core.config import get_settings
 
 settings = get_settings()
