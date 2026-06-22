@@ -62,6 +62,10 @@ def generate_api_key(prefix: str = "p1p") -> str:
     return f"{prefix}_{secrets.token_hex(24)}"
 
 
+def hash_api_key(raw_key: str) -> str:
+    return hashlib.sha256(raw_key.encode()).hexdigest()
+
+
 def generate_idempotency_key() -> str:
     return secrets.token_hex(16)
 

@@ -14,7 +14,7 @@ from app.models.user import User
 from app.schemas.common import APIResponse
 from app.schemas.user import (
     AdminCreate, UserCreate, UserUpdate, UserResponse,
-    LoginRequest, TokenResponse, RefreshRequest, APIKeyResponse,
+    LoginRequest, TokenResponse, RefreshRequest,
 )
 from app.services.user_service import UserService
 
@@ -97,21 +97,10 @@ async def get_balance(
     return APIResponse(data=balance)
 
 
-@router.post(
-    "/me/api-key",
-    response_model=APIResponse[APIKeyResponse],
-    summary="Rotate API key — returns raw key once",
-)
-async def rotate_api_key(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    svc = UserService(db)
-    raw_key = await svc.rotate_api_key(current_user.id)
-    return APIResponse(
-        data=APIKeyResponse(api_key=raw_key),
-        message="API key rotated. Store this securely — it will not be shown again.",
-    )
+# NOTE: Legacy "/me/api-key" rotation endpoint removed. API key issuance and
+# rotation now lives in the developer dashboard (see endpoints_developer.py /
+# api_key_service.py), which issues environment-scoped keys (p1t_ / p1l_)
+# compatible with get_current_user's auth resolution.
 
 
 # ── Admin ─────────────────────────────────────────────────────────────────────

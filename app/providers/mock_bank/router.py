@@ -28,7 +28,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.dependencies import get_db
+from app.api.v1.dependencies import get_db, require_test_environment
 from app.core.logging import get_logger
 from app.providers.mock_bank.engine import MockBankEngine
 from app.providers.mock_bank.schemas import (
@@ -51,7 +51,11 @@ from app.schemas.common import APIResponse
 
 log = get_logger(__name__)
 
-router = APIRouter(prefix="/mock-bank", tags=["Mock Bank (Sandbox)"])
+router = APIRouter(
+    prefix="/mock-bank",
+    tags=["Mock Bank (Sandbox)"],
+    dependencies=[Depends(require_test_environment)],
+)
 
 
 def _engine(db: AsyncSession = Depends(get_db)) -> MockBankEngine:

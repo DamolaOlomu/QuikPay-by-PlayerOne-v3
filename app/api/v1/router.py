@@ -3,7 +3,7 @@ app/api/v1/router.py
 """
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import users, transactions, kyc, payment_links, webhooks
+from app.api.v1.endpoints import users, transactions, kyc, payment_links, webhooks, developer
 
 api_router = APIRouter()
 
@@ -12,3 +12,4 @@ api_router.include_router(transactions.router)
 api_router.include_router(kyc.router)
 api_router.include_router(payment_links.router)
 api_router.include_router(webhooks.router)
+api_router.include_router(developer.router)

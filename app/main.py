@@ -18,6 +18,8 @@ from app.core.config import get_settings
 from app.core.exceptions import PlayerOnePayError
 from app.core.logging import configure_logging, get_logger
 from app.middleware.request_id import RequestIDMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.request_logger import RequestLogMiddleware
 
 settings = get_settings()
 log = get_logger(__name__)
@@ -45,6 +47,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     configure_logging()
     log.info("app.starting", version=settings.APP_VERSION, env=settings.APP_ENV)
 
+    # Redis client was created eagerly in create_app() so middleware gets a
+    # real (if not-yet-verified) client at registration time. Here we just
+    # verify connectivity and log the outcome.
+    if app.state.redis:
+        try:
+            await app.state.redis.ping()
+            log.info("redis.connected")
+        except Exception as exc:
+            log.warning("redis.unavailable", exc_info=exc)
+            # Leave app.state.redis as-is — RateLimitMiddleware fails open
+            # per-request on any Redis error, so this is safe.
 
     # Sentry (production error tracking)
     if settings.SENTRY_DSN and settings.is_production:
@@ -81,6 +94,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await dispatcher_task
         except asyncio.CancelledError:
             pass
+    if app.state.redis:
+        await app.state.redis.aclose()
     from app.db.session import engine
     await engine.dispose()
 
@@ -101,6 +116,17 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Create the Redis client object eagerly (lazy connection — no I/O yet)
+    # so middleware below gets the real client at registration time instead
+    # of a permanently-None placeholder. Connectivity is verified in lifespan().
+    redis_client = None
+    if settings.REDIS_URL:
+        import redis.asyncio as aioredis
+        redis_client = aioredis.from_url(
+            settings.REDIS_URL, encoding="utf-8", decode_responses=True
+        )
+    app.state.redis = redis_client
+
     # ── Middleware (order matters — outermost registered = outermost executed) ─
     app.add_middleware(
         CORSMiddleware,
@@ -111,6 +137,9 @@ def create_app() -> FastAPI:
         expose_headers=["X-Request-ID", "X-Response-Time-ms"],
     )
     app.add_middleware(RequestIDMiddleware)
+
+    app.add_middleware(RateLimitMiddleware, redis_client=app.state.redis)
+    app.add_middleware(RequestLogMiddleware)
 
     # ── Exception Handlers ────────────────────────────────────────────────────
 

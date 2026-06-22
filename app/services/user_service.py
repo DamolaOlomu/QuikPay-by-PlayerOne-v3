@@ -4,7 +4,6 @@ All user business logic lives here — endpoints stay thin.
 """
 from __future__ import annotations
 
-import hashlib
 from typing import Optional
 
 from sqlalchemy import select
@@ -22,7 +21,6 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     decode_token,
-    generate_api_key,
 )
 from app.core.logging import get_logger
 from app.models.user import User, UserRole, UserStatus
@@ -170,16 +168,9 @@ class UserService:
             "expires_in": 30 * 60,
         }
 
-    # ── API Key ───────────────────────────────────────────────────────────────
-
-    async def rotate_api_key(self, user_id: str) -> str:
-        user = await self.get_user(user_id)
-        raw_key = generate_api_key()
-        # Store only the hash — raw key is shown once to the caller
-        user.api_key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-        await self.db.flush()
-        log.warning("user.api_key_rotated", user_id=user_id)
-        return raw_key
+    # NOTE: rotate_api_key() removed. Single-key-per-user model is superseded
+    # by the api_keys table (see api_key_service.py) — multiple environment-
+    # scoped keys (p1t_ / p1l_) per user, issued via the developer dashboard.
 
     # ── Balance ───────────────────────────────────────────────────────────────
 

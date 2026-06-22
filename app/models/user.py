@@ -17,6 +17,7 @@ from app.models.base import TimestampMixin, SoftDeleteMixin, ULIDPrimaryKeyMixin
 if TYPE_CHECKING:
     from app.models.kyc import KYC
     from app.models.transaction import Transaction
+    from app.models.api_key import ApiKey
 
 
 def _new_wallet_id() -> str:
@@ -64,8 +65,12 @@ class User(ULIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
         nullable=False,
     )
 
-    # API key (hashed) — used for machine-to-machine auth
-    api_key_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
+    # Legacy API key (hashed) — superseded by the api_keys table.
+    # Column renamed to _legacy_api_key_hash by migration 0005_developer_dashboard.py.
+    # Remove this field entirely once removed from the DB in migration 0006.
+    legacy_api_key_hash: Mapped[Optional[str]] = mapped_column(
+        "_legacy_api_key_hash", String(255), nullable=True, index=True
+    )
 
     # Financial
     wallet_id: Mapped[str] = mapped_column(String(32), unique=True, index=True, default=_new_wallet_id, nullable=False)
@@ -79,6 +84,11 @@ class User(ULIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     kyc: Mapped[Optional["KYC"]] = relationship(back_populates="user", uselist=False)
     transactions: Mapped[List["Transaction"]] = relationship(
         back_populates="user", order_by="Transaction.created_at.desc()"
+    )
+    api_keys: Mapped[List["ApiKey"]] = relationship(
+        back_populates="user",
+        order_by="ApiKey.created_at.desc()",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:

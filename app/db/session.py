@@ -20,12 +20,22 @@ settings = get_settings()
 
 # Use NullPool for SQLite (no connection pooling needed / not thread-safe across asyncio tasks)
 _is_sqlite = settings.DATABASE_URL.startswith("sqlite")
+_is_postgres = settings.DATABASE_URL.startswith("postgresql")
+
+# Supabase's connection pooler (Supavisor/PgBouncer) runs in transaction-pooling
+# mode, which doesn't support asyncpg's prepared statements. Disabling the
+# statement cache avoids DuplicatePreparedStatementError under the pooler.
+# Must be passed via connect_args as a real int — passing it as a
+# "?statement_cache_size=0" query string param breaks asyncpg's internal
+# validation, which compares it against 0 assuming an int, not a str.
+_connect_args = {"statement_cache_size": 0} if _is_postgres else {}
 
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
     future=True,
     poolclass=NullPool if _is_sqlite else AsyncAdaptedQueuePool,
+    connect_args=_connect_args,
     **({} if _is_sqlite else {
         "pool_size": settings.DATABASE_POOL_SIZE,
         "max_overflow": settings.DATABASE_MAX_OVERFLOW,

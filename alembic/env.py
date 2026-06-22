@@ -52,10 +52,16 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_async_migrations() -> None:
+    # statement_cache_size=0 — Supabase's pooler (Supavisor/PgBouncer) runs in
+    # transaction-pooling mode, which doesn't support asyncpg's prepared
+    # statements. Must be passed as a real int via connect_args, not as a
+    # "?statement_cache_size=0" query param on the URL (asyncpg's internal
+    # validation compares it against 0 assuming an int, and breaks on a str).
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args={"statement_cache_size": 0},
     )
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
