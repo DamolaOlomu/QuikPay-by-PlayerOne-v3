@@ -57,10 +57,10 @@ class User(ULIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
 
     # Access control
     role: Mapped[UserRole] = mapped_column(
-        SAEnum(UserRole, name="userrole"), default=UserRole.CUSTOMER, nullable=False
+        String(20), default=UserRole.CUSTOMER, nullable=False
     )
     status: Mapped[UserStatus] = mapped_column(
-        SAEnum(UserStatus, name="userstatus"),
+        String(30),
         default=UserStatus.PENDING_VERIFICATION,
         nullable=False,
     )
