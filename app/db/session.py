@@ -31,7 +31,7 @@ _is_postgres = settings.DATABASE_URL.startswith("postgresql")
 _connect_args = {"statement_cache_size": 0} if _is_postgres else {}
 
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    settings.DATABASE_URL.split("?")[0],
     echo=settings.DEBUG,
     future=True,
     poolclass=NullPool if _is_sqlite else AsyncAdaptedQueuePool,
