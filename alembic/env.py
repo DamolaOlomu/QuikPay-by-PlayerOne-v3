@@ -22,7 +22,7 @@ from app.core.config import get_settings
 
 settings = get_settings()
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL.split("?")[0])
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
