@@ -27,7 +27,7 @@ def _new_wallet_id() -> str:
 class UserRole(str, Enum):
     CUSTOMER = "customer"
     AGENT = "agent"
-    MERCHANT = "merchant"
+    MERCHANT = "merchant"  # v2
     BUSINESS = "business"
     ADMIN = "admin"
 
