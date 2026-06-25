@@ -159,7 +159,7 @@ class TransactionEvent(ULIDPrimaryKeyMixin, TimestampMixin, Base):
         SAEnum(TransactionStatus, name="transactionstatus2"), nullable=True
     )
     to_status: Mapped[TransactionStatus] = mapped_column(
-        SAEnum(TransactionStatus, name="transactionstatus3"), nullable=False
+        String(20), nullable=False
     )
     actor: Mapped[str] = mapped_column(String(64), nullable=False)  # user_id | "system"
     note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

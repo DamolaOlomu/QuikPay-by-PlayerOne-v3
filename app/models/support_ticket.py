@@ -61,15 +61,15 @@ class SupportTicket(ULIDPrimaryKeyMixin, TimestampMixin, Base):
 
     # Classification
     category: Mapped[TicketCategory] = mapped_column(
-        SAEnum(TicketCategory, name="ticketcategory"), nullable=False, default=TicketCategory.OTHER
+        String(30), nullable=False, default=TicketCategory.OTHER
     )
     priority: Mapped[TicketPriority] = mapped_column(
-        SAEnum(TicketPriority, name="ticketpriority"), nullable=False, default=TicketPriority.MEDIUM
+        String(20), nullable=False, default=TicketPriority.MEDIUM
     )
 
     # State
     status: Mapped[TicketStatus] = mapped_column(
-        SAEnum(TicketStatus, name="ticketstatus"), nullable=False, default=TicketStatus.OPEN
+        String(20), nullable=False, default=TicketStatus.OPEN
     )
 
     # Admin fields

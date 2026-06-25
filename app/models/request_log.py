@@ -47,7 +47,7 @@ class RequestLog(ULIDPrimaryKeyMixin, TimestampMixin, Base):
 
     # Environment at time of request (denormalised for fast filtering)
     environment: Mapped[KeyEnvironment] = mapped_column(
-        SAEnum(KeyEnvironment, name="keyenvironment"), nullable=False, default=KeyEnvironment.TEST
+        String(10), nullable=False, default=KeyEnvironment.TEST
     )
 
     # Request

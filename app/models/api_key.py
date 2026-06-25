@@ -64,12 +64,12 @@ class ApiKey(ULIDPrimaryKeyMixin, TimestampMixin, Base):
 
     # Scope
     environment: Mapped[KeyEnvironment] = mapped_column(
-        SAEnum(KeyEnvironment, name="keyenvironment"), nullable=False, default=KeyEnvironment.TEST
+        String(10), nullable=False, default=KeyEnvironment.TEST
     )
 
     # State
     status: Mapped[KeyStatus] = mapped_column(
-        SAEnum(KeyStatus, name="keystatus"), nullable=False, default=KeyStatus.ACTIVE
+        String(20), nullable=False, default=KeyStatus.ACTIVE
     )
     revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
