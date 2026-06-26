@@ -51,18 +51,17 @@ from app.services.usage_service import UsageService
 
 def _bcrypt_hash(password: str) -> str:
     """
-    Produce a bcrypt-compatible hash without hitting the 72-byte truncation
-    bug present in newer bcrypt versions when passlib runs its internal
-    wrap-detection check.
-
-    Strategy: pre-hash the password with SHA-256 (32 bytes = always < 72),
-    then bcrypt-hash the hex digest.  The stored value is a valid bcrypt hash
-    that the passlib CryptContext can later verify against the same digest.
+    Produce a valid bcrypt hash by calling the bcrypt C library directly,
+    bypassing passlib. The passlib CryptContext raises ValueError on ANY hash
+    call when bcrypt lacks __about__: its one-time backend init runs
+    detect_wrap_bug(), which hashes an internal 80-byte test vector and trips
+    the new strict 72-byte limit before we supply our own input.
     """
-    from passlib.context import CryptContext
-    _ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    digest = hashlib.sha256(password.encode()).hexdigest()  # 64 hex chars, well under 72 bytes
-    return _ctx.hash(digest)
+    import bcrypt as _bcrypt_lib
+    return _bcrypt_lib.hashpw(
+        password[:72].encode(),
+        _bcrypt_lib.gensalt(rounds=4),
+    ).decode()
 
 
 # ─── shared helpers ──────────────────────────────────────────────────────────
