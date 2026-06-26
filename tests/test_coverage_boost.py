@@ -137,21 +137,33 @@ class TestAdminEndpoints:
         assert resp.status_code == 401
 
 
-# ── API Key rotation ──────────────────────────────────────────────────────────
+# ── API Key tests ─────────────────────────────────────────────────────────────
 
 class TestApiKey:
 
     async def test_rotate_api_key_returns_raw_key(self, client: AsyncClient, auth_headers: dict):
-        resp = await client.post("/api/v1/users/me/api-key", headers=auth_headers)
-        assert resp.status_code == 200
+        resp = await client.post(
+            "/api/v1/developer/keys",
+            json={"name": "test key", "environment": "test"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 201
         data = resp.json()["data"]
-        assert "api_key" in data
-        assert len(data["api_key"]) > 20
+        assert "raw_key" in data
+        assert len(data["raw_key"]) > 20
 
     async def test_rotate_api_key_twice_returns_different_keys(self, client: AsyncClient, auth_headers: dict):
-        r1 = await client.post("/api/v1/users/me/api-key", headers=auth_headers)
-        r2 = await client.post("/api/v1/users/me/api-key", headers=auth_headers)
-        assert r1.json()["data"]["api_key"] != r2.json()["data"]["api_key"]
+        r1 = await client.post(
+            "/api/v1/developer/keys",
+            json={"name": "key one", "environment": "test"},
+            headers=auth_headers,
+        )
+        r2 = await client.post(
+            "/api/v1/developer/keys",
+            json={"name": "key two", "environment": "test"},
+            headers=auth_headers,
+        )
+        assert r1.json()["data"]["raw_key"] != r2.json()["data"]["raw_key"]
 
 
 # ── Suspended account ─────────────────────────────────────────────────────────
