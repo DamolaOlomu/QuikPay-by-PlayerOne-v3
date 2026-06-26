@@ -19,6 +19,8 @@ import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
+
 import pytest
 import pytest_asyncio
 from passlib.context import CryptContext
@@ -672,7 +674,6 @@ class TestDispatcher:
             new_callable=AsyncMock,
             side_effect=httpx.ConnectError("Connection refused"),
         ):
-            import httpx
             delivered = await dispatch_pending(db)
 
         assert delivered == 0
@@ -728,7 +729,7 @@ class TestMockBankClient:
         from app.providers.mock_bank.client import MockBankClient
         client = MockBankClient()
         client.initialise_collection = AsyncMock(return_value={"status": "success", "data": {}})
-        result = await client.collection_bank_transfer(
+        await client.collection_bank_transfer(
             amount=Decimal("1000"),
             currency="NGN",
             reference="ref-001",
