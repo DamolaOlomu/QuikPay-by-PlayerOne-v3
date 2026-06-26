@@ -15,15 +15,14 @@ Key gaps addressed (from CI report):
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
-
 import pytest
 import pytest_asyncio
-from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, ResourceNotFoundError
@@ -49,7 +48,21 @@ from app.services.api_key_service import ApiKeyService, _generate_raw_key, _hash
 from app.services.support_ticket_service import SupportTicketService
 from app.services.usage_service import UsageService
 
-_pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def _bcrypt_hash(password: str) -> str:
+    """
+    Produce a bcrypt-compatible hash without hitting the 72-byte truncation
+    bug present in newer bcrypt versions when passlib runs its internal
+    wrap-detection check.
+
+    Strategy: pre-hash the password with SHA-256 (32 bytes = always < 72),
+    then bcrypt-hash the hex digest.  The stored value is a valid bcrypt hash
+    that the passlib CryptContext can later verify against the same digest.
+    """
+    from passlib.context import CryptContext
+    _ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    digest = hashlib.sha256(password.encode()).hexdigest()  # 64 hex chars, well under 72 bytes
+    return _ctx.hash(digest)
 
 
 # ─── shared helpers ──────────────────────────────────────────────────────────
@@ -58,7 +71,7 @@ async def _make_user(db: AsyncSession, phone: str = "+2349200000001") -> User:
     user = User(
         phone_number=phone,
         fullname="Gap Coverage User",
-        hashed_password=_pwd.hash("SecurePass123!"),
+        hashed_password=_bcrypt_hash("SecurePass123!"),
         email=f"gap_{phone[-4:]}@test.com",
     )
     db.add(user)
@@ -74,7 +87,7 @@ async def _make_api_key(
     name: str = "gap-key",
 ) -> tuple[ApiKey, str]:
     """Returns (orm_key, raw_key)."""
-    import hashlib, secrets
+    import secrets
 
     prefix_str = "p1t" if env == KeyEnvironment.TEST else "p1l"
     raw = f"{prefix_str}_{secrets.token_hex(24)}"
@@ -159,7 +172,6 @@ class TestApiKeyService:
         user = await _make_user(db, "+2349200000012")
         svc = ApiKeyService(db)
         created = await svc.create_key(user.id, ApiKeyCreate(name="active", environment=KeyEnvironment.TEST))
-        # revoke it
         await svc.revoke_key(user.id, created.id)
         keys = await svc.list_keys(user.id)
         assert all(k.status != KeyStatus.REVOKED for k in keys)
@@ -290,7 +302,6 @@ class TestSupportTicketService:
             ),
         )
         await db.commit()
-        # admin=True bypasses ownership check
         fetched = await svc.get("admin-user-id", created.id, is_admin=True)
         assert fetched.id == created.id
 
@@ -359,7 +370,6 @@ class TestSupportTicketService:
 
     async def test_update_ticket_not_found_raises(self, db: AsyncSession):
         svc = SupportTicketService(MagicMock())
-        # mock the db to return None
         svc.db = AsyncMock()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
@@ -445,7 +455,7 @@ class TestUsageService:
         svc = UsageService(db)
         stats_test = await svc.get_usage_stats(user.id, days=30, environment=KeyEnvironment.TEST)
         stats_live = await svc.get_usage_stats(user.id, days=30, environment=KeyEnvironment.LIVE)
-        assert stats_test.overview.total_requests == 3  # all logs were TEST
+        assert stats_test.overview.total_requests == 3
         assert stats_live.overview.total_requests == 0
 
     async def test_get_usage_stats_api_key_filter(self, db: AsyncSession):
@@ -459,7 +469,6 @@ class TestUsageService:
         await _make_request_logs(db, user.id, count=3, success=True)
         svc = UsageService(db)
         stats = await svc.get_usage_stats(user.id, days=30)
-        # Logs span multiple hours so there's at least one daily bucket
         assert len(stats.daily) >= 1
         for bucket in stats.daily:
             assert bucket.total > 0
@@ -499,7 +508,6 @@ class TestUsageService:
         user = await _make_user(db, "+2349200000050")
         svc = UsageService(db)
         overview = await svc.get_dashboard_overview(user.id, 0.0, "NGN")
-        # No logs → defaults to 100%
         assert overview.success_rate_last_7d == 100.0
 
     async def test_get_dashboard_overview_open_tickets(self, db: AsyncSession):
@@ -642,7 +650,7 @@ class TestDispatcher:
             payload_json=json.dumps({"ref": "test_ref_004"}),
             target_url="http://test-hook.example.com/webhook",
             status=MockWebhookStatus.PENDING,
-            attempts=MAX_RETRIES - 1,  # one more will exhaust
+            attempts=MAX_RETRIES - 1,
         )
         db.add(event)
         await db.commit()
